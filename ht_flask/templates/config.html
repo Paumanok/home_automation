@@ -1,0 +1,33 @@
+<html>
+    <body>  
+        <center>
+            <div> <h1> Settings </h1> </div>
+            <div>
+                <h2>
+                    Nickname Config
+                </h2>
+            </div>
+            <div>
+            {% for device in dev_list %}
+                <div>
+                    <form action="/config" method="POST">
+                        <label for={{device["MAC"]}}> {{device["MAC"]}} </label>
+                        <input type="name" name={{device["MAC"]}} placeholder={{device["nick"]}} >
+                        <button type="submit">Submit  </button> 
+                    </form>
+                </div>
+            {% endfor %}
+            </div>
+            <div> <h2> Misc Settings</h2></div>
+            <div> 
+                <form action="/config" method="POST">
+                    <label for="m_refresh"> Measurement Refresh (seconds)</label>
+                    <input type="number" name="m_refresh" placeholder={{config["m_sync_refresh_rate"]}} >
+                    <button type="submit"> Submit </button>
+
+                </form>
+            </div>
+            
+        </center>
+    </body>
+</html>

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+    <body>  
+        <center>
+            <div>
+                <h1>
+                    Configure Nicknames
+                </h1>
+            </div>
+            <div>
+            {% for device in dev_list %}
+                <div>
+                    <form action="/nickname" method="POST">
+                        <label for={{device["MAC"]}}> {{device["MAC"]}} </label>
+                        <input type="name" name={{device["MAC"]}} placeholder={{device["nick"]}} >
+                        <button type="submit">Submit  </button> 
+                    </form>
+                </div>
+            {% endfor %}
+            </div>
+        </center>
+    </body>
+</html>
