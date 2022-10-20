@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
     <body>  
         <center>
@@ -21,10 +22,16 @@
             <div> <h2> Misc Settings</h2></div>
             <div> 
                 <form action="/config" method="POST">
-                    <label for="m_refresh"> Measurement Refresh (seconds)</label>
-                    <input type="number" name="m_refresh" placeholder={{config["m_sync_refresh_rate"]}} >
+                    <label for="m_sync_refresh_rate"> Measurement Refresh (seconds)</label>
+                    <input type="number" name="m_sync_refresh_rate" placeholder={{config["m_sync_refresh_rate"]}} >
                     <button type="submit"> Submit </button>
-
+                </form>
+            </div>
+            <div> 
+                <form action="/config" method="POST">
+                    <label for="startup_message"> Startup message </label>
+                    <input type="text" name="startup_message" placeholder={{config["startup_message"]}} >
+                    <button type="submit"> Submit </button>
                 </form>
             </div>
             

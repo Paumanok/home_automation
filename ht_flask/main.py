@@ -1,7 +1,7 @@
 from pkg_resources import DEVELOP_DIST
 from flask import Flask, Response, request, render_template
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
 import time
 from mongo_service import dbm
@@ -40,10 +40,10 @@ def config():
   
     if request.method == "POST":
         for key in request.form.keys():
-            if key == "m_refresh":
-                print("REFRESH_CHANGE"*30)
-                config["m_sync_refresh_rate"] = request.form[key]
-                db.config.update_one({}, {"$set": {"ht_server_config": config}})
+            if key in config.keys():
+                config[key] = request.form[key]
+                db.config.update_one({}, {"$set" : {"ht_server_config" : config}})
+
 
             for dev in devices:
                 if key == dev["MAC"]:
@@ -98,6 +98,27 @@ def mongo_dump():
     #print(ret_str)
     return ret_str
 
+@app.route('/test_dump', methods=["GET"])
+def testdump():
+    dtnow= datetime.now()
+    now = dtnow.strftime("%d/%m/%Y %H:%M:%S")
+    dt_prior = dtnow - timedelta(days=1)
+    day_prior = dt_prior.strftime("%d/%m/%Y %H:%M:%S")
+    devs = dbm().get_devices()
+    ret_str = ""
+    dataset = dict()
+    for dev in devs:
+        dataset[dev["MAC"]] = dbm().get_data_from_range(dev["MAC"], dtnow, dt_prior, reverse=False)
+        # ret_str += "<body><p>"
+        # dev_mac = dev["MAC"]
+        # dev_nick = dev["nick"]
+        # header = dev.keys()
+        # rows = [x.values() for x in dataset]
+        # ret_str = ret_str + f"Device Mac: {dev_mac}, nickname: {dev_nick}\r\n"
+        # ret_str = ret_str + tabulate(rows, header, tablefmt="html")
+        # ret_str = ret_str + "\r\n</p></body>"
+    return dataset
+
 @app.route('/data',methods=["POST", "GET"])
 def data():
     db = dbm().db
@@ -139,7 +160,7 @@ def sync_timer():
     global sync_refresh_rate
     global sync_count
     while True:
-        sync_count = int(sync_refresh_rate)
+        sync_count = dbm().get_refresh_rate()
 
         while sync_count > 0:
             sync_count -= 1
@@ -164,6 +185,6 @@ def init_sync_timer():
 if __name__ == "__main__":
     measurement_sync = init_sync_timer()
     measurement_sync.start()
-    print("fug")
+    print(dbm().get_config()["startup_message"])
 
     app.run(host="0.0.0.0", port="5000",debug=True)
