@@ -42,65 +42,15 @@ class dbm:
         refresh_rate = self.get_config()["m_sync_refresh_rate"]
         return int(refresh_rate)
 
-    def get_data_from_range(self, mac_addr, start, end, reverse=True):
-        #dev = self.devices.find_one({"MAC":mac_addr})
-        dummy_id = objectid.ObjectId.from_datetime(datetime.now() - timedelta(hours=24))
+    def get_data_from_range(self, mac_addr, start=None, end=None, reverse=True):    
+        dummy_id = objectid.ObjectId.from_datetime(datetime.now() - timedelta(hours=12))
         measurements = self.measurements.find({"_id": {"$gte": dummy_id}, "MAC": mac_addr}, {"_id":0})
-        print(measurements)
+        
         data = [i for i in measurements]
-        print(data)
+        
+        
         return data
 
-        # start_found = False
-        # end_found = False 
-        # if reverse:
-        #     search_array = reversed(dev["measurements"])
-        # else:
-        #     search_array = dev["measurements"]
-        # ret = []
-        # last = None
-        # for obj_id in search_array:
-        #     mes = self.measurements.find_one({"_id":obj_id}, {"_id": 0}).copy()
-        #     dtime = datetime.strptime(mes["date"] + " " + mes["time"], "%d/%m/%Y %H:%M:%S")
-        #     if last is not None:
-        #         last_time = datetime.strptime(last["date"] + " " + last["time"], "%d/%m/%Y %H:%M:%S")
-        #     if reverse:
-        #         if end_found:
-        #             ret.append(mes)
-        #             last = mes
-        #         else:
-        #             if dtime > end:
-        #                 last = mes
-        #             elif dtime < end and dtime > last_time:
-        #                 ret.append(mes)
-        #                 end_found = True
-
-        #         if not start_found:
-        #             if dtime > start:
-        #                 last = mes
-        #             elif dtime < start and dtime > last_time:
-        #                 ret.append(mes)
-        #                 break
-
-        #     else:
-        #         if start_found:
-        #             ret.append(mes)
-        #             last = mes
-        #         else:
-        #             if dtime < start:
-        #                 last = mes
-        #             elif dtime > start and dtime < last_time:
-        #                 ret.append(mes)
-        #                 start_found = True
-                
-        #         if not end_found:
-        #             if dtime < end:
-        #                 last = mes
-        #             elif dtime > end and dtime < last_time:
-        #                 ret.append(mes)
-        #                 break
-
-        # return ret
 
     def get_n_last_data(self, mac_addr, n):
         dev = self.devices.find_one({"MAC":mac_addr})

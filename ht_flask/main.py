@@ -1,5 +1,5 @@
 from pkg_resources import DEVELOP_DIST
-from flask import Flask, Response, request, render_template
+from flask import Flask, Response, request, render_template, Markup
 import json
 from datetime import datetime, timedelta
 import threading
@@ -8,6 +8,10 @@ from mongo_service import dbm
 from pymongo import MongoClient
 from tabulate import tabulate
 from jinja2 import Environment, FileSystemLoader
+import plotly.express as px
+import plotly.offline as ol
+import plotly.graph_objects as go
+import pandas as pd
 
 app = Flask(__name__, template_folder='templates')
 
@@ -19,14 +23,49 @@ sync_refresh_rate = 120 #default first run value, updated values stored in mongo
 
 @app.route('/', methods= ["POST", "GET"])
 def index():
-    if request.method == "GET":
-        return "hello world"
-    if request.method == "POST":
-        data = request.json
-        print(data)
-        print(request.get_data)
-        #print(json.dumps(request.json))
-        return "200"
+    presets = ["Last Hour","Last Day", "Last Week", "Last Month"]
+    default = presets[1]
+    #if request.method == "GET":
+    devices = dbm().get_devices()
+    plots = []
+    datas = []
+    
+    for dev in devices:
+        nickname = dev["nick"]
+        mes = dbm().get_data_from_range(dev["MAC"])
+        times = [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in mes]
+        temps = [c_to_f(i["Temp"]) for i in mes]
+        hums = [i["Humidity"] for i in mes]
+        data = {"nickname": nickname, "time": times, "temp": temps, "humidity": hums}
+  
+        datas.append(data)
+
+    temp_fig = go.Figure(
+         data = [go.Scatter(x=d["time"], y=d["temp"], name=d["nickname"], orientation='v', mode='lines') for d in datas], 
+         layout = {
+            'margin': {'t': 60},
+           'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
+            'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Temperature(F)'}}
+         }
+      )
+    
+    hum_fig = go.Figure(
+         data = [go.Scatter(x=d["time"], y=d["humidity"], name=d["nickname"], orientation='v', mode='lines') for d in datas], 
+         layout = {
+            'margin': {'t': 60},
+           'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
+            'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Humidity(%)'}}
+         }
+      )
+
+    htmldiv_temp = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
+
+    htmldiv_hum = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
+
+    return render_template('index.html', plot1 = htmldiv_temp, plot2 = htmldiv_hum)
+        
+    #return render_template('index.html', plot1= plots[0], plot2 = plots[1], plot3=plots[2])
+        
 
 @app.route('/next', methods=["GET"])
 def next_measurement():  
@@ -101,9 +140,8 @@ def mongo_dump():
 @app.route('/test_dump', methods=["GET"])
 def testdump():
     dtnow= datetime.now()
-    now = dtnow.strftime("%d/%m/%Y %H:%M:%S")
+    
     dt_prior = dtnow - timedelta(days=1)
-    day_prior = dt_prior.strftime("%d/%m/%Y %H:%M:%S")
     devs = dbm().get_devices()
     ret_str = ""
     dataset = dict()
@@ -155,6 +193,8 @@ def data():
     print("time-to-sync: " + str(sync_count))
     return "200"
 
+def c_to_f(c):
+    return (c * 9/5) + 32
 
 def sync_timer():
     global sync_refresh_rate
