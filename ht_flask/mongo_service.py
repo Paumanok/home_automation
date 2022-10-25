@@ -1,3 +1,9 @@
+"""
+mongo_service.py
+utility for wranglin' mongo, primarily helper functions to support the main flask server
+author: Matthew Smith
+"""
+
 from pymongo import MongoClient
 from bson import objectid
 import json
@@ -50,20 +56,7 @@ class dbm:
         
         data = [i for i in measurements]
         
-        
         return data
-
-
-    def get_n_last_data(self, mac_addr, n):
-        dev = self.devices.find_one({"MAC":mac_addr})
-        ret = []
-        n_found = 0
-        for i in reversed(dev["measurements"]):
-            if n_found == n:
-                break
-            ret.append(i)
-            n_found += 1
-        return ret
 
 
     def dump_data(self):

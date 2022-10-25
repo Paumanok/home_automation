@@ -1,27 +1,34 @@
-from pkg_resources import DEVELOP_DIST
-from flask import Flask, Response, request, render_template, Markup
+"""
+main.py
+
+Flask server for supporting ESP32 devices with BME280 measurement sensors and serving
+the data collected to a local network.
+
+Author: Matthew Smith
+
+"""
 import json
-from datetime import datetime, timedelta
 import threading
 import time
-from mongo_service import dbm
+from datetime import datetime, timedelta
+
+from flask import Flask, Response, request, render_template, Markup
 from pymongo import MongoClient
 from tabulate import tabulate
-from jinja2 import Environment, FileSystemLoader
+
 import plotly.express as px
 import plotly.offline as ol
 import plotly.graph_objects as go
 import pandas as pd
 
+from mongo_service import dbm
+
 app = Flask(__name__, template_folder='templates')
 
-results = []
 
 sync_count = 0
 start_time = 120
 sync_refresh_rate = 120 #default first run value, updated values stored in mongo
-
-#presets = { "Last 12 Hours": 12,"Last Hour": 1, "Last Day": 24, "Last Week": 24*7, "Last Month": 24*7*30}
 
 presets = {"last_12":    {"disp":"Last 12 Hours", "delta": 12}, 
             "last_hour": {"disp":"Last Hour", "delta":1}, 
@@ -46,7 +53,7 @@ def index():
             print("changing period")
 
     devices = dbm().get_devices()
-    plots = []
+
     datas = []
     
     for dev in devices:
@@ -77,8 +84,7 @@ def index():
          }
       )
 
-    #htmldiv_temp = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
-    #htmldiv_hum = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
+    
 
     template_input["temp_plot"] = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
     template_input["hum_plot"] = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
@@ -118,36 +124,13 @@ def config():
     return render_template('config.html', dev_list=devices, config=config, db_size=dbsize)
 
 
-@app.route('/nickname', methods=["GET", "POST"])
-def nickname_config():
-    db=dbm()
-    devices = db.get_devices()
-    if request.method == "GET":
-        #environment = Environment(loader=FileSystemLoader("templates/"))
-        #template = environment.get_template("nicknames.html")
-        content = render_template('nicknames.html', dev_list=devices)
-        return content
-    
-    if request.method == "POST":
-        print(request)
-        print("hit")
-        print(request.form.keys())
-        for key in request.form.keys():
-            for dev in devices:
-                if key == dev["MAC"]:
-                    print("found it")
-                    print(request.form[key])
-                    db.devices.update_one({"MAC": dev["MAC"]}, {"$set":{"nick": request.form[key]}})
-        devices = db.dump_data()["devices"]
-        return render_template("nicknames.html", dev_list=devices)
-
 @app.route('/mongo_dump', methods=["GET"])
 def mongo_dump():
     db=dbm()
     ret_str = "<body><p>"
     to_return =  db.dump_data()
     for device in to_return["devices"]:
-        #print(device)
+
         dataset = device["measurements"]
         header = dataset[0].keys()
         rows = [x.values() for x in dataset]
@@ -156,7 +139,7 @@ def mongo_dump():
         ret_str = ret_str + f"Device Mac: {dev_mac}, nickname: {dev_nick}\r\n"
         ret_str = ret_str + tabulate(rows, header, tablefmt="html")
         ret_str = ret_str + "\r\n</p></body>"
-    #print(ret_str)
+
     return ret_str
 
 @app.route('/test_dump', methods=["GET"])
@@ -179,8 +162,7 @@ def data():
     measurements = dbm().measurements
 
     if request.method == "GET":
-        return str(results)
-       
+        return "hello"
 
     if request.is_json:
         now = datetime.now()
@@ -207,6 +189,9 @@ def data():
         print(data2)
     print("time-to-sync: " + str(sync_count))
     return "200"
+
+
+# Helper functions
 
 def c_to_f(c):
     return (c * 9/5) + 32
