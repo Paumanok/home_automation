@@ -21,18 +21,37 @@ sync_count = 0
 start_time = 120
 sync_refresh_rate = 120 #default first run value, updated values stored in mongo
 
+#presets = { "Last 12 Hours": 12,"Last Hour": 1, "Last Day": 24, "Last Week": 24*7, "Last Month": 24*7*30}
+
+presets = {"last_12":    {"disp":"Last 12 Hours", "delta": 12}, 
+            "last_hour": {"disp":"Last Hour", "delta":1}, 
+            "last_day":  {"disp":"Last Day", "delta":24}, 
+            "last_week": {"disp":"Last Week", "delta":24*7}, 
+            "last_month":{"disp":"Last Month", "delta":24*7*30}}
+
 @app.route('/', methods= ["POST", "GET"])
 def index():
-    presets = ["Last Hour","Last Day", "Last Week", "Last Month"]
-    default = presets[1]
-    #if request.method == "GET":
+    template_input = {
+        "presets" : presets,
+        "preset_keys" : presets.keys(), 
+        "current_period" : "last_12",
+        "current_delta" : presets["last_12"]["delta"]
+    }
+
+    if request.method == "POST":
+        if "data_period" in request.form.keys():
+            new_period = request.form["data_period"]
+            template_input["current_period"] = new_period
+            template_input["current_delta"] = presets[new_period]["delta"]
+            print("changing period")
+
     devices = dbm().get_devices()
     plots = []
     datas = []
     
     for dev in devices:
         nickname = dev["nick"]
-        mes = dbm().get_data_from_range(dev["MAC"])
+        mes = dbm().get_data_from_range(dev["MAC"], delta= template_input["current_delta"])
         times = [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in mes]
         temps = [c_to_f(i["Temp"]) for i in mes]
         hums = [i["Humidity"] for i in mes]
@@ -58,14 +77,16 @@ def index():
          }
       )
 
-    htmldiv_temp = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
+    #htmldiv_temp = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
+    #htmldiv_hum = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
 
-    htmldiv_hum = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
+    template_input["temp_plot"] = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
+    template_input["hum_plot"] = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
 
-    return render_template('index.html', plot1 = htmldiv_temp, plot2 = htmldiv_hum)
+    print(template_input["presets"])
+    return render_template('index.html', t_input = template_input)
         
-    #return render_template('index.html', plot1= plots[0], plot2 = plots[1], plot3=plots[2])
-        
+   
 
 @app.route('/next', methods=["GET"])
 def next_measurement():  
@@ -90,10 +111,11 @@ def config():
                     print(request.form[key])
                     db.devices.update_one({"MAC": dev["MAC"]}, {"$set":{"nick": request.form[key]}})
         
-
+    
+    dbsize = get_db_size_str(db)
     devices = db.get_devices()
     config = db.get_config()    
-    return render_template('config.html', dev_list=devices, config=config)
+    return render_template('config.html', dev_list=devices, config=config, db_size=dbsize)
 
 
 @app.route('/nickname', methods=["GET", "POST"])
@@ -147,14 +169,7 @@ def testdump():
     dataset = dict()
     for dev in devs:
         dataset[dev["MAC"]] = dbm().get_data_from_range(dev["MAC"], dtnow, dt_prior, reverse=False)
-        # ret_str += "<body><p>"
-        # dev_mac = dev["MAC"]
-        # dev_nick = dev["nick"]
-        # header = dev.keys()
-        # rows = [x.values() for x in dataset]
-        # ret_str = ret_str + f"Device Mac: {dev_mac}, nickname: {dev_nick}\r\n"
-        # ret_str = ret_str + tabulate(rows, header, tablefmt="html")
-        # ret_str = ret_str + "\r\n</p></body>"
+        
     return dataset
 
 @app.route('/data',methods=["POST", "GET"])
@@ -165,7 +180,7 @@ def data():
 
     if request.method == "GET":
         return str(results)
-        #return json.dumps(results)
+       
 
     if request.is_json:
         now = datetime.now()
@@ -195,6 +210,19 @@ def data():
 
 def c_to_f(c):
     return (c * 9/5) + 32
+
+def get_db_size_str(db):
+    size = int(db.db.command("collstats", "measurements")["size"])
+    if size > 1000000000:
+        dbsize = "{0} Gb".format(size/1000000)
+    elif size > 1000000:
+        dbsize = "{0} Mb".format(size/1000000)
+    elif size > 1000:
+        dbsize = "{0} kb".format(size/1000) 
+    else:
+        dbsize = "{0} b".format(size)
+
+    return dbsize
 
 def sync_timer():
     global sync_refresh_rate

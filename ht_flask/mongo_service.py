@@ -3,7 +3,7 @@ from bson import objectid
 import json
 import copy
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class dbm:
 
@@ -42,8 +42,10 @@ class dbm:
         refresh_rate = self.get_config()["m_sync_refresh_rate"]
         return int(refresh_rate)
 
-    def get_data_from_range(self, mac_addr, start=None, end=None, reverse=True):    
-        dummy_id = objectid.ObjectId.from_datetime(datetime.now() - timedelta(hours=12))
+    def get_data_from_range(self, mac_addr, delta=12):
+        #from_datetime will assume time is in UTC, adjust .now() so we don't get an extra 4 hours
+        dummy_id = objectid.ObjectId.from_datetime(datetime.now(timezone.utc) - timedelta(hours=delta))
+        print(datetime.now() - timedelta(hours=delta))
         measurements = self.measurements.find({"_id": {"$gte": dummy_id}, "MAC": mac_addr}, {"_id":0})
         
         data = [i for i in measurements]

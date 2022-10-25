@@ -1,3 +1,4 @@
+{% include 'header.html' %}
 <!DOCTYPE html>
 
 <html>
@@ -5,12 +6,27 @@
         <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     </head>
 
+<div>
+    <center>
+        <form action="/" method="POST" id="data_period_form">
+            <label for="data_period"> Select a time period:</label>
+            <select name="data_period" id="data_period" form="data_period_form">
+                
+                {% for pre in t_input["preset_keys"]%}
+                <option value={{pre}}>{{t_input["presets"][pre]["disp"]}}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Submit</button>
+        </form>
+    </center>
+</div>
+<div>
+    <center> <h2> Displaying the {{t_input["presets"][t_input["current_period"]]["disp"]}} </h2></center>
+    {{t_input["temp_plot"]}}
 
-    {{plot1}}
-
-    {{plot2}}
-
-    {{plot3}}
+    {{t_input["hum_plot"]}}
+</div>
+    
 
     
 </html>
