@@ -44,7 +44,8 @@ def index():
         "presets" : presets,
         "preset_keys" : presets.keys(), 
         "current_period" : config["data_period"], 
-        "current_delta" : presets[config["data_period"]]["delta"]
+        "current_delta" : presets[config["data_period"]]["delta"],
+        "refresh_delay" : str(sync_count + 5) #offset to allow new data to show
     }
 
     if request.method == "POST":
