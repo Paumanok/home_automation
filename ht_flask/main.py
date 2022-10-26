@@ -38,11 +38,13 @@ presets = {"last_12":    {"disp":"Last 12 Hours", "delta": 12},
 
 @app.route('/', methods= ["POST", "GET"])
 def index():
+    config = dbm().get_config()
+    devices = dbm().get_devices()
     template_input = {
         "presets" : presets,
         "preset_keys" : presets.keys(), 
-        "current_period" : "last_12",
-        "current_delta" : presets["last_12"]["delta"]
+        "current_period" : config["data_period"], 
+        "current_delta" : presets[config["data_period"]]["delta"]
     }
 
     if request.method == "POST":
@@ -50,9 +52,11 @@ def index():
             new_period = request.form["data_period"]
             template_input["current_period"] = new_period
             template_input["current_delta"] = presets[new_period]["delta"]
+            config["data_period"] = new_period
+            dbm().config.update_one({}, {"$set":{"ht_server_config":config}})
             print("changing period")
 
-    devices = dbm().get_devices()
+    
 
     datas = []
     
@@ -89,7 +93,7 @@ def index():
     template_input["temp_plot"] = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
     template_input["hum_plot"] = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
 
-    print(template_input["presets"])
+
     return render_template('index.html', t_input = template_input)
         
    

@@ -1,6 +1,7 @@
 {
     "ht_server_config": {
         "m_sync_refresh_rate" : 120,
-        "startup_message" : "hello world"
+        "startup_message" : "hello world",
+        "data_period" : "last_12"
     }
 }
