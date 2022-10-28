@@ -11,6 +11,8 @@ import copy
 import os
 from datetime import datetime, timedelta, timezone
 
+default_config_path = '/flask_app/default/config.json'
+
 class dbm:
 
     def __init__(self):
@@ -24,7 +26,7 @@ class dbm:
         #initial config loading if it hasn't been loaded before
         
         if len(list(self.config.find({}))) == 0:
-            with open('/flask_app/default/config.json', 'r') as cf_file:
+            with open(default_config_path, 'r') as cf_file:
                 def_config = json.load(cf_file)
                 self.config.insert_one(def_config)
 
@@ -35,6 +37,8 @@ class dbm:
             dev_dict = dict()
             dev_dict["MAC"] = dev["MAC"]
             dev_dict["nick"] = dev["nick"]
+            dev_dict["temp_comp"] = dev["temp_comp"]
+            dev_dict["hum_comp"] = dev["hum_comp"]
             devices.append(dev_dict)
             
         return devices
@@ -43,7 +47,16 @@ class dbm:
         conf = self.config.find_one({}, {"_id":0})
         if conf != None:
             return conf["ht_server_config"]
-        
+
+    def save_config(self, filepath=default_config_path):
+        conf = self.config.find_one({}, {"_id":0})
+        if conf != None:
+            cur_config = conf
+            with open(filepath, 'w+') as cf_file:
+                json.dump(cur_config, cf_file, indent=4)
+
+
+
     def get_refresh_rate(self):
         refresh_rate = self.get_config()["m_sync_refresh_rate"]
         return int(refresh_rate)

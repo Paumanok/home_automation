@@ -6,19 +6,37 @@
             <div> <h1> Settings </h1> </div>
             <div>
                 <h2>
-                    Nickname Config
+                    Device Config
                 </h2>
             </div>
             <div>
-            {% for device in dev_list %}
-                <div>
-                    <form action="/config" method="POST">
-                        <label for={{device["MAC"]}}> {{device["MAC"]}} </label>
-                        <input type="name" name={{device["MAC"]}} placeholder={{device["nick"]}} >
-                        <button type="submit">Submit  </button> 
-                    </form>
-                </div>
-            {% endfor %}
+                
+                    {% for device in dev_list %}
+                    <div>
+                        <h3>{{device["MAC"]}}</h3>
+                        <p>
+                            <form action="/config" method="POST">
+                            <label for={{device["MAC"]}}-nick> Nickname: </label>
+                            <input type="name" name={{device["MAC"]}}-nick placeholder={{device["nick"]}}>
+                            </form>
+                        </p>
+                        <p>
+                            <form action="/config" method="POST">
+                            <label for="{{device["MAC"]}}-hum_comp"> Humidty Compensation: </label>
+                            <input type="number" name={{device["MAC"]}}-hum_comp placeholder={{device["hum_comp"]}}> 
+                            </form>
+                        </p>  
+                        <p>
+                            <form action="/config" method="POST">
+                            <label for="{{device["MAC"]}}-temp_comp"> temperature Compensation: </label>
+                            <input type="number" name="{{device["MAC"]}}-temp_comp" placeholder={{device["temp_comp"]}}>
+                            </form>
+                        </p> 
+                        
+                    </div>
+                {% endfor %}
+                
+            
             </div>
             <div> <h2> Misc Settings</h2></div>
             <div> 
@@ -38,6 +56,11 @@
             
             <div>
                 <h3> Current db size: {{db_size}}</h3>
+            </div>
+            <div>
+                <form action="/config" method="POST">
+                    <button type="submit" name="save_config"> Save config file </button>
+                </form>
             </div>
         </center>
     </body>

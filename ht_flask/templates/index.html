@@ -19,6 +19,12 @@
             </select>
             <button type="submit">Submit</button>
         </form>
+
+        <form action="/" method="POST" id="compensation_form">
+            <label for="compensation"> Enable User Compensation: </label>
+            <input type="checkbox" id="compensation" name="compensate" value=True {{ "checked" if t_input["compensate"]}}/>
+            <button type="submit">Submit</button>
+        </form>
     </center>
 </div>
 <div>

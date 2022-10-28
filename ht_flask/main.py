@@ -45,7 +45,8 @@ def index():
         "preset_keys" : presets.keys(), 
         "current_period" : config["data_period"], 
         "current_delta" : presets[config["data_period"]]["delta"],
-        "refresh_delay" : str(sync_count + 5) #offset to allow new data to show
+        "refresh_delay" : str(sync_count + 5), #offset to allow new data to show
+        "compensate" : config["compensate"]
     }
 
     if request.method == "POST":
@@ -56,6 +57,19 @@ def index():
             config["data_period"] = new_period
             dbm().config.update_one({}, {"$set":{"ht_server_config":config}})
             print("changing period")
+        elif "compensate" in request.form.keys():
+            #only there if true
+   
+            config["compensate"] = True
+            dbm().config.update_one({}, {"$set":{"ht_server_config":config}})
+            template_input["compensate"] = True
+            print("compensate")
+        
+        elif "compensate" not in request.form.keys():
+            config["compensate"] = False
+            dbm().config.update_one({}, {"$set":{"ht_server_config":config}})
+            template_input["compensate"] = False
+            print("notthere\n\r")
 
     
 
@@ -65,8 +79,8 @@ def index():
         nickname = dev["nick"]
         mes = dbm().get_data_from_range(dev["MAC"], delta= template_input["current_delta"])
         times = [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in mes]
-        temps = [c_to_f(i["Temp"]) for i in mes]
-        hums = [i["Humidity"] for i in mes]
+        temps = compensate_temp_measurements(mes, dev, config["compensate"])#[c_to_f(i["Temp"] + dev["temp_comp"] ) for i in mes]
+        hums = compensate_hum_measurements(mes, dev, config["compensate"])#[i["Humidity"] + dev["hum_comp"] for i in mes]
         data = {"nickname": nickname, "time": times, "temp": temps, "humidity": hums}
   
         datas.append(data)
@@ -106,22 +120,36 @@ def next_measurement():
 @app.route('/config', methods=["GET", "POST"])
 def config():
     db = dbm()
-    devices = db.get_devices()
+    devices = db.devices.find({},{"_id":0})
     config = db.get_config()
   
+    
     if request.method == "POST":
         for key in request.form.keys():
+            if key == "save_config":
+                db.save_config()
+
             if key in config.keys():
                 config[key] = request.form[key]
                 db.config.update_one({}, {"$set" : {"ht_server_config" : config}})
 
 
             for dev in devices:
-                if key == dev["MAC"]:
-                    print("found it")
-                    print(request.form[key])
-                    db.devices.update_one({"MAC": dev["MAC"]}, {"$set":{"nick": request.form[key]}})
-        
+                
+                if dev["MAC"] in key:
+                    
+                    parsed = key.split("-")
+                    
+                    if len(parsed) > 1:
+                        print("parsing key")
+                        field = parsed[1]
+                        
+                        db.devices.update_one({"MAC": dev["MAC"]}, {"$set":{field:request.form[key]}})
+
+                   
+                    
+                    
+    
     
     dbsize = get_db_size_str(db)
     devices = db.get_devices()
@@ -152,12 +180,14 @@ def testdump():
     dtnow= datetime.now()
     
     dt_prior = dtnow - timedelta(days=1)
-    devs = dbm().get_devices()
+    #devs = dbm().get_devices()
+    devs = dbm().devices.find({},{"_id":False})
     ret_str = ""
     dataset = dict()
     for dev in devs:
-        dataset[dev["MAC"]] = dbm().get_data_from_range(dev["MAC"], dtnow, dt_prior, reverse=False)
-        
+        #dataset[dev["MAC"]] = dbm().get_data_from_range(dev["MAC"], dtnow, dt_prior, reverse=False)
+        del dev["measurements"]
+        dataset[dev["MAC"]] = dev
     return dataset
 
 @app.route('/data',methods=["POST", "GET"])
@@ -197,6 +227,19 @@ def data():
 
 
 # Helper functions
+def compensate_temp_measurements(measurements, device, compensate=False):
+    comp = 0
+    if compensate:
+        comp = float(device["temp_comp"])
+    temps = [(c_to_f(i["Temp"]) + float(comp) ) for i in measurements]
+    return temps
+
+def compensate_hum_measurements(measurements, device, compensate=False):
+    comp = 0
+    if compensate:
+        comp = float(device["hum_comp"])
+    hums = [(i["Humidity"] + comp) for i in measurements]
+    return hums
 
 def c_to_f(c):
     return (c * 9/5) + 32
@@ -228,11 +271,12 @@ def sync_timer():
 def init_sync_timer():
     #Initialize the sync rate to work with settings
     global sync_refresh_rate
-    conf_cursor = dbm().config.find_one({})
-    cursor_len = len(list(dbm().config.find({})))
+    #conf_cursor = dbm().config.find_one({})
+    #cursor_len = len(list(dbm().config.find({})))   
+    config = dbm().get_config()
     
-    if cursor_len > 0:      
-        sync_refresh_rate = conf_cursor["ht_server_config"]["m_sync_refresh_rate"]
+    if "m_sync_refresh_rate" in config.keys():      
+        sync_refresh_rate = config["m_sync_refresh_rate"]
         print("====== Configured Refresh Rate: " + str(sync_refresh_rate) + " seconds")
         
     #configure the thread
@@ -244,5 +288,7 @@ if __name__ == "__main__":
     measurement_sync = init_sync_timer()
     measurement_sync.start()
     print(dbm().get_config()["startup_message"])
+    #to_remove = []
+    #[dbm().config.update_many({}, {"$unset": {i:""}}) for i in to_remove]
 
     app.run(host="0.0.0.0", port="5000",debug=True)
