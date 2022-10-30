@@ -30,37 +30,6 @@ class dbm:
                 def_config = json.load(cf_file)
                 self.config.insert_one(def_config)
 
-    def get_devices(self):
-        dev_cursor = self.devices.find({},{"_id":0})
-        devices = []
-        for dev in dev_cursor:
-            dev_dict = dict()
-            dev_dict["MAC"] = dev["MAC"]
-            dev_dict["nick"] = dev["nick"]
-            dev_dict["temp_comp"] = dev["temp_comp"]
-            dev_dict["hum_comp"] = dev["hum_comp"]
-            devices.append(dev_dict)
-            
-        return devices
-
-    def get_config(self):
-        conf = self.config.find_one({}, {"_id":0})
-        if conf != None:
-            return conf["ht_server_config"]
-
-    def save_config(self, filepath=default_config_path):
-        conf = self.config.find_one({}, {"_id":0})
-        if conf != None:
-            cur_config = conf
-            with open(filepath, 'w+') as cf_file:
-                json.dump(cur_config, cf_file, indent=4)
-
-
-
-    def get_refresh_rate(self):
-        refresh_rate = self.get_config()["m_sync_refresh_rate"]
-        return int(refresh_rate)
-
     def get_data_from_range(self, mac_addr, delta=12):
         #from_datetime will assume time is in UTC, adjust .now() so we don't get an extra 4 hours
         dummy_id = objectid.ObjectId.from_datetime(datetime.now(timezone.utc) - timedelta(hours=delta))
@@ -71,26 +40,18 @@ class dbm:
         
         return data
 
+    def get_db_size_str(self):
+        size = int(self.db.command("collstats", "measurements")["size"])
+        if size > 1000000000:
+            dbsize = "{0} Gb".format(size/1000000)
+        elif size > 1000000:
+            dbsize = "{0} Mb".format(size/1000000)
+        elif size > 1000:
+            dbsize = "{0} kb".format(size/1000) 
+        else:
+            dbsize = "{0} b".format(size)
 
-    def dump_data(self):
-        dev_cursor = self.devices.find({},{"_id":0})
-        devs = {"devices": []}
-        for dev in dev_cursor:
-            dev_dict = dict()
-            dev_dict["MAC"] = dev["MAC"]
-            dev_dict["nick"] = dev["nick"]
-            dev_dict["measurements"] = []
-
-            for ob_id in dev["measurements"]:
-                #print(ob_id)
-                mes = self.measurements.find_one({"_id":ob_id}, {"_id": 0})
-                #print(mes)
-                dev_dict["measurements"].append(mes)
-            #print(dev)
-            devs["devices"].append(dev_dict)
-        #print(devs)
-        return devs
-
+        return dbsize
 
 
 presets = {"last_12":    {"disp":"Last 12 Hours", "delta": 12}, 
@@ -107,10 +68,12 @@ class configuration:
     _db = None
     _config_collection = None
     config_dict = None
+    presets = None
 
     def __init__(self, db):
         self._db = db
         self._config_collection = db.db['config']
+        self.presets = presets
         self.config_dict = dict()
         self.load_config()
 
@@ -170,7 +133,7 @@ class configuration:
         for dev in self.devices:
             if dev["MAC"] == mac:
                 dev[name] = value
-                self._db.devices.update_one({"MAC":dev["MAC"]}, {"$set" : {name:value}}) #redundancy for now
+                #self._db.devices.update_one({"MAC":dev["MAC"]}, {"$set" : {name:value}}) #redundancy for now
                 self.push_config()
 
     def get_cur_delta(self):

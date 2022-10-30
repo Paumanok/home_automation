@@ -30,14 +30,8 @@ sync_count = 0
 start_time = 120
 sync_refresh_rate = 120 #default first run value, updated values stored in mongo
 
-presets = {"last_12":    {"disp":"Last 12 Hours", "delta": 12}, 
-            "last_hour": {"disp":"Last Hour", "delta":1}, 
-            "last_day":  {"disp":"Last Day", "delta":24}, 
-            "last_week": {"disp":"Last Week", "delta":24*7}, 
-            "last_month":{"disp":"Last Month", "delta":24*7*30}}
-
 @app.route('/', methods=["POST","GET"])
-def test_index():
+def home():
     config = configuration(dbm())
 
     if request.method == "POST":
@@ -83,8 +77,8 @@ def test_index():
         )
 
     template_input = {
-        "presets" : presets,
-        "preset_keys" : presets.keys(), 
+        "presets" : config.presets,
+        "preset_keys" : config.presets.keys(), 
         "current_period" : config.data_period, 
         "current_delta" : config.get_cur_delta(),
         "refresh_delay" : str(sync_count + 5), #offset to allow new data to show
@@ -97,82 +91,6 @@ def test_index():
     return render_template('index.html', t_input = template_input)
 
 
-@app.route('/old', methods= ["POST", "GET"])
-def index():
-    config = dbm().get_config()
-    devices = dbm().get_devices()
-    template_input = {
-        "presets" : presets,
-        "preset_keys" : presets.keys(), 
-        "current_period" : config["data_period"], 
-        "current_delta" : presets[config["data_period"]]["delta"],
-        "refresh_delay" : str(sync_count + 5), #offset to allow new data to show
-        "compensate" : config["compensate"]
-    }
-
-    if request.method == "POST":
-        if "data_period" in request.form.keys():
-            new_period = request.form["data_period"]
-            template_input["current_period"] = new_period
-            template_input["current_delta"] = presets[new_period]["delta"]
-            config["data_period"] = new_period
-            dbm().config.update_one({}, {"$set":{"ht_server_config":config}})
-            print("changing period")
-        elif "compensate" in request.form.keys():
-            #only there if true
-   
-            config["compensate"] = True
-            dbm().config.update_one({}, {"$set":{"ht_server_config":config}})
-            template_input["compensate"] = True
-            print("compensate")
-        
-        elif "compensate" not in request.form.keys():
-            config["compensate"] = False
-            dbm().config.update_one({}, {"$set":{"ht_server_config":config}})
-            template_input["compensate"] = False
-            print("notthere\n\r")
-
-    
-
-    datas = []
-    
-    for dev in devices:
-        nickname = dev["nick"]
-        mes = dbm().get_data_from_range(dev["MAC"], delta= template_input["current_delta"])
-        times = [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in mes]
-        temps = compensate_temp_measurements(mes, dev, config["compensate"])#[c_to_f(i["Temp"] + dev["temp_comp"] ) for i in mes]
-        hums = compensate_hum_measurements(mes, dev, config["compensate"])#[i["Humidity"] + dev["hum_comp"] for i in mes]
-        data = {"nickname": nickname, "time": times, "temp": temps, "humidity": hums}
-  
-        datas.append(data)
-
-    temp_fig = go.Figure(
-         data = [go.Scatter(x=d["time"], y=d["temp"], name=d["nickname"], orientation='v', mode='lines') for d in datas], 
-         layout = {
-            'margin': {'t': 60},
-           'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
-            'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Temperature(F)'}}
-         }
-      )
-    
-    hum_fig = go.Figure(
-         data = [go.Scatter(x=d["time"], y=d["humidity"], name=d["nickname"], orientation='v', mode='lines') for d in datas], 
-         layout = {
-            'margin': {'t': 60},
-           'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
-            'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Humidity(%)'}}
-         }
-      )
-
-    
-
-    template_input["temp_plot"] = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
-    template_input["hum_plot"] = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
-
-
-    return render_template('index.html', t_input = template_input)
-        
-   
 
 @app.route('/next', methods=["GET"])
 def next_measurement():  
@@ -180,7 +98,7 @@ def next_measurement():
 
 
 @app.route('/config', methods=["GET", "POST"])
-def new_config():
+def config():
     config = configuration(dbm())
 
     if request.method == "POST":
@@ -198,78 +116,20 @@ def new_config():
                         field = parsed[1]
                         config.set_device_attr(dev["MAC"], field, request.form[key])
                         
-    dbsize = get_db_size_str(dbm())
+    dbsize = dbm().get_db_size_str()
     return render_template('config.html', dev_list=config.devices, config=config.config_dict, db_size=dbsize)
 
-@app.route('/oldconfig', methods=["GET", "POST"])
-def config():
-    db = dbm()
-    devices = db.devices.find({},{"_id":0})
-    config = db.get_config()
-  
-    
-    if request.method == "POST":
-        for key in request.form.keys():
-            if key == "save_config":
-                db.save_config()
-                
-
-            if key in config.keys():
-                config[key] = request.form[key]
-                db.config.update_one({}, {"$set" : {"ht_server_config" : config}})
-
-
-            for dev in devices:
-                
-                if dev["MAC"] in key:
-                    
-                    parsed = key.split("-")
-                    
-                    if len(parsed) > 1:
-                        print("parsing key")
-                        field = parsed[1]
-                        
-                        db.devices.update_one({"MAC": dev["MAC"]}, {"$set":{field:request.form[key]}})
-  
-    dbsize = get_db_size_str(db)
-    devices = db.get_devices()
-    config = db.get_config()    
-    return render_template('config.html', dev_list=devices, config=config, db_size=dbsize)
-
-
-@app.route('/mongo_dump', methods=["GET"])
-def mongo_dump():
-    db=dbm()
-    ret_str = "<body><p>"
-    to_return =  db.dump_data()
-    for device in to_return["devices"]:
-
-        dataset = device["measurements"]
-        header = dataset[0].keys()
-        rows = [x.values() for x in dataset]
-        dev_mac = device["MAC"]
-        dev_nick = device["nick"]
-        ret_str = ret_str + f"Device Mac: {dev_mac}, nickname: {dev_nick}\r\n"
-        ret_str = ret_str + tabulate(rows, header, tablefmt="html")
-        ret_str = ret_str + "\r\n</p></body>"
-
-    return ret_str
 
 @app.route('/test_dump', methods=["GET"])
 def testdump():
-    dtnow= datetime.now()
-    
-    dt_prior = dtnow - timedelta(days=1)
-    #devs = dbm().get_devices()
-    devs = dbm().devices.find({},{"_id":False})
-    ret_str = ""
+    config = configuration(dbm())
     dataset = dict()
-    for dev in devs:
-        #dataset[dev["MAC"]] = dbm().get_data_from_range(dev["MAC"], dtnow, dt_prior, reverse=False)
-        del dev["measurements"]
+    for dev in config.devices:
+        dev["measurements"] = dbm().get_data_from_range(dev["MAC"])
         dataset[dev["MAC"]] = dev
     return dataset
 
+#Actual interface esp32 communicates with.
 @app.route('/data',methods=["POST", "GET"])
 def data():
     db = dbm().db
@@ -287,11 +147,10 @@ def data():
                  "Temp": request.json["temp"], 
                  "Humidity": request.json["hum"]}
 
-        print("====================\r\nDATA_RECIEVED: \r\n" + str(to_insert) + "\r\n====================")
+        print("\r\nDATA_RECIEVED: \r\n" + str(to_insert) + "\r\n")
 
-        resp = measurements.insert_one(to_insert.copy())
-        
-    print("time-to-sync: " + str(sync_count))
+        resp = measurements.insert_one(to_insert.copy())        
+    #print("time-to-sync: " + str(sync_count))
     return "200"
 
 
@@ -312,20 +171,10 @@ def compensate_hum_measurements(measurements, device, compensate=False):
 
 def c_to_f(c):
     return (c * 9/5) + 32
+# end helper
 
-def get_db_size_str(db):
-    size = int(db.db.command("collstats", "measurements")["size"])
-    if size > 1000000000:
-        dbsize = "{0} Gb".format(size/1000000)
-    elif size > 1000000:
-        dbsize = "{0} Mb".format(size/1000000)
-    elif size > 1000:
-        dbsize = "{0} kb".format(size/1000) 
-    else:
-        dbsize = "{0} b".format(size)
 
-    return dbsize
-
+#Syncronization for devices and home refresh
 def sync_timer():
     global sync_refresh_rate
     global sync_count
@@ -354,7 +203,6 @@ def init_sync_timer():
     return t
 
 if __name__ == "__main__":
-   
     measurement_sync = init_sync_timer()
     measurement_sync.start()
     print(configuration(dbm()).startup_message)
