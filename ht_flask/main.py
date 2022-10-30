@@ -21,7 +21,7 @@ import plotly.offline as ol
 import plotly.graph_objects as go
 import pandas as pd
 
-from mongo_service import dbm
+from mongo_service import dbm, configuration
 
 app = Flask(__name__, template_folder='templates')
 
@@ -36,7 +36,68 @@ presets = {"last_12":    {"disp":"Last 12 Hours", "delta": 12},
             "last_week": {"disp":"Last Week", "delta":24*7}, 
             "last_month":{"disp":"Last Month", "delta":24*7*30}}
 
-@app.route('/', methods= ["POST", "GET"])
+@app.route('/', methods=["POST","GET"])
+def test_index():
+    config = configuration(dbm())
+
+    if request.method == "POST":
+        req_keys = request.form.keys()
+        if "data_period" in req_keys:
+            config.data_period = request.form["data_period"]
+            config.push_config()
+        else:
+            if "compensate" in req_keys:
+                config.compensate = True
+                config.push_config()
+            elif "compensate" not in req_keys:
+                config.compensate = False
+                config.push_config()
+
+    dev_data = []
+
+    for dev in config.devices:
+        measurements = dbm().get_data_from_range(dev["MAC"], delta=config.get_cur_delta())
+        data = {"nickname": dev["nick"],
+                "time": [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in measurements],
+                "temp": compensate_temp_measurements(measurements, dev, config.compensate),
+                "humidity": compensate_hum_measurements(measurements, dev, config.compensate)}
+
+        dev_data.append(data)
+
+    temp_fig = go.Figure(
+            data = [go.Scatter(x=d["time"], y=d["temp"], name=d["nickname"], orientation='v', mode='lines') for d in dev_data], 
+            layout = {
+                'margin': {'t': 60},
+                'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
+                'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Temperature(F)'}}
+            }
+        )
+        
+    hum_fig = go.Figure(
+            data = [go.Scatter(x=d["time"], y=d["humidity"], name=d["nickname"], orientation='v', mode='lines') for d in dev_data], 
+            layout = {
+                'margin': {'t': 60},
+                'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
+                'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Humidity(%)'}}
+            }
+        )
+
+    template_input = {
+        "presets" : presets,
+        "preset_keys" : presets.keys(), 
+        "current_period" : config.data_period, 
+        "current_delta" : config.get_cur_delta(),
+        "refresh_delay" : str(sync_count + 5), #offset to allow new data to show
+        "compensate" : config.compensate
+    }
+
+    template_input["temp_plot"] = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
+    template_input["hum_plot"] = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
+
+    return render_template('index.html', t_input = template_input)
+
+
+@app.route('/old', methods= ["POST", "GET"])
 def index():
     config = dbm().get_config()
     devices = dbm().get_devices()
