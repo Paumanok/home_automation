@@ -120,15 +120,13 @@ class configuration:
             return self.config_dict[str(name)]
         
 
-    def __setattr__(self, __name: str, __value) -> None:
-        
+    def __setattr__(self, __name: str, __value) -> None:   
         try:
             super().__setattr__(__name, __value)
         except AttributeError:
-
             if __name in self.config_dict.keys():
                     if __name == "m_sync_refresh_rate":
-                        if __value < self.MIN_REFRESH_RATE or __value > self.MAX_REFRESH_RATE:
+                        if __value <= self.MIN_REFRESH_RATE or __value > self.MAX_REFRESH_RATE:
                             return
                     self.config_dict[__name] = __value
       
@@ -136,15 +134,16 @@ class configuration:
     def __repr__(self) -> str:
         return json.dumps(self.config_dict, indent=4)
 
-    def set_and_push(self, key, value):
-        self.config[key] = value
-        self.push_config()
+    def keys(self) -> list:
+        return self.config_dict.keys()
+
+    
 
     #load config into class
     #checks existence, loads default if 
     #not found
     def load_config(self):
-        if len(list(self._config_collection.find({}))) == 0:
+        if self._config_collection.find_one({}, {"_id":0}) is None:
             try:
                 with open(default_config_path, 'r') as cf_file:
                     #todo: add try/except 
@@ -157,18 +156,38 @@ class configuration:
             if "devices" not in self.config_dict.keys():
                 self.config_dict["devices"]  = list(self._db.db["devices"].find({}, {"_id":0, "measurements":0}))
 
+    def set_and_push(self, key, value):
+            self.config[key] = value
+            self.push_config()
+
     def get_device(self, mac):
         for dev in self.config_dict["devices"]:
             if dev["MAC"] == mac:
                 return dev
         return None
 
+    def set_device_attr(self, mac, name, value):
+        for dev in self.devices:
+            if dev["MAC"] == mac:
+                dev[name] = value
+                self._db.devices.update_one({"MAC":dev["MAC"]}, {"$set" : {name:value}}) #redundancy for now
+                self.push_config()
+
     def get_cur_delta(self):
         return presets[self.data_period]["delta"]
 
+    def rebuild_config(self):
+        with open(default_config_path+".bak", 'r') as cf_file:
+            self.config_dict = {}
+            self.config_dict = json.load(cf_file)["ht_server_config"]
+            print(json.dumps(self.config_dict, indent=4))
+            self.push_config()
+
     #push config back to db
     def push_config(self):
-        self._config_collection.update_one({}, {"$set":{"ht_server_config":self.config}})
+        conf_id = self._config_collection.find_one({})["_id"]
+        print("pushin")
+        self._config_collection.update_one({"_id": conf_id}, {"$set":{"ht_server_config":self.config_dict}})
 
     def save_config(self, filepath=default_config_path):
         conf = self._config_collection.find_one({}, {"_id":0})

@@ -178,7 +178,30 @@ def index():
 def next_measurement():  
     return "sync_time " + str(sync_count)
 
+
 @app.route('/config', methods=["GET", "POST"])
+def new_config():
+    config = configuration(dbm())
+
+    if request.method == "POST":
+        for key in request.form.keys():
+            if key == "save_config":
+                config.save_config()
+            
+            if key in config.keys():
+                config.set_and_push(key, request.form[key])
+
+            for dev in config.devices:
+                if dev["MAC"] in key:
+                    parsed = key.split("-")
+                    if len(parsed) > 1:
+                        field = parsed[1]
+                        config.set_device_attr(dev["MAC"], field, request.form[key])
+                        
+    dbsize = get_db_size_str(dbm())
+    return render_template('config.html', dev_list=config.devices, config=config.config_dict, db_size=dbsize)
+
+@app.route('/oldconfig', methods=["GET", "POST"])
 def config():
     db = dbm()
     devices = db.devices.find({},{"_id":0})
@@ -189,6 +212,7 @@ def config():
         for key in request.form.keys():
             if key == "save_config":
                 db.save_config()
+                
 
             if key in config.keys():
                 config[key] = request.form[key]
@@ -206,12 +230,7 @@ def config():
                         field = parsed[1]
                         
                         db.devices.update_one({"MAC": dev["MAC"]}, {"$set":{field:request.form[key]}})
-
-                   
-                    
-                    
-    
-    
+  
     dbsize = get_db_size_str(db)
     devices = db.get_devices()
     config = db.get_config()    
@@ -262,27 +281,16 @@ def data():
 
     if request.is_json:
         now = datetime.now()
-        dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-        dt_date= now.strftime("%d/%m/%Y")
-        dt_time = now.strftime("%H:%M:%S")
-        to_insert = {"date":dt_date, "time": dt_time, "MAC": request.json["mac"], "Temp": request.json["temp"], "Humidity": request.json["hum"]}
+        to_insert = {"date":now.strftime("%d/%m/%Y"),
+                 "time":now.strftime("%H:%M:%S"),
+                 "MAC": request.json["mac"], 
+                 "Temp": request.json["temp"], 
+                 "Humidity": request.json["hum"]}
+
         print("====================\r\nDATA_RECIEVED: \r\n" + str(to_insert) + "\r\n====================")
 
         resp = measurements.insert_one(to_insert.copy())
         
-        if resp.acknowledged == True:
-            
-            device_res =  dev.find_one({"MAC":request.json["mac"]} )
-            
-            if device_res != None:
-                print("updating")
-                dev.update_one({"MAC":request.json["mac"]}, { "$push": {"measurements": resp.inserted_id}})
-            else:
-                print("inserting")
-                dev.insert_one({"MAC": request.json["mac"], "nick": "", "measurements": [resp.inserted_id]})
-        
-        data2 = request.json
-        print(data2)
     print("time-to-sync: " + str(sync_count))
     return "200"
 
@@ -321,8 +329,9 @@ def get_db_size_str(db):
 def sync_timer():
     global sync_refresh_rate
     global sync_count
+    config = configuration(dbm())
     while True:
-        sync_count = dbm().get_refresh_rate()
+        sync_count = int(config.m_sync_refresh_rate)
 
         while sync_count > 0:
             sync_count -= 1
@@ -332,24 +341,21 @@ def sync_timer():
 def init_sync_timer():
     #Initialize the sync rate to work with settings
     global sync_refresh_rate
-    #conf_cursor = dbm().config.find_one({})
-    #cursor_len = len(list(dbm().config.find({})))   
-    config = dbm().get_config()
     
+    config = configuration(dbm())
     if "m_sync_refresh_rate" in config.keys():      
-        sync_refresh_rate = config["m_sync_refresh_rate"]
+        sync_refresh_rate = config.m_sync_refresh_rate
         print("====== Configured Refresh Rate: " + str(sync_refresh_rate) + " seconds")
-        
+    #else use hardcoded default
+
     #configure the thread
     t = threading.Thread(target=sync_timer)
     t.daemon = True
     return t
 
 if __name__ == "__main__":
+   
     measurement_sync = init_sync_timer()
     measurement_sync.start()
-    print(dbm().get_config()["startup_message"])
-    #to_remove = []
-    #[dbm().config.update_many({}, {"$unset": {i:""}}) for i in to_remove]
-
+    print(configuration(dbm()).startup_message)
     app.run(host="0.0.0.0", port="5000",debug=True)

@@ -1,0 +1,8 @@
+{
+    "ht_server_config": {
+        "m_sync_refresh_rate": "30",
+        "startup_message": "hello",
+        "data_period": "last_hour",
+        "compensate": true
+    }
+}

@@ -1,8 +1,28 @@
 {
     "ht_server_config": {
-        "m_sync_refresh_rate": "30",
+        "m_sync_refresh_rate": "240",
         "startup_message": "hello",
         "data_period": "last_hour",
-        "compensate": true
+        "compensate": true,
+        "devices": [
+            {
+                "MAC": "c8:f0:9e:a4:71:b0",
+                "nick": "hall",
+                "hum_comp": "6",
+                "temp_comp": "-1"
+            },
+            {
+                "MAC": "ec:94:cb:6b:05:a0",
+                "nick": "kitchen",
+                "hum_comp": "6",
+                "temp_comp": "-2"
+            },
+            {
+                "MAC": "c8:c9:a3:d0:a4:a8",
+                "nick": "office",
+                "hum_comp": "2",
+                "temp_comp": "0"
+            }
+        ]
     }
 }
