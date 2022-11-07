@@ -62,7 +62,7 @@ presets = {"last_12":    {"disp":"Last 12 Hours", "delta": 12},
 
 
 #class to standardize the config access
-class configuration:
+class Configuration:
     MIN_REFRESH_RATE = 0
     MAX_REFRESH_RATE = 1000
     _db = None
@@ -83,10 +83,14 @@ class configuration:
             return self.config_dict[str(name)]
         
 
-    def __setattr__(self, __name: str, __value) -> None:   
-        try:
+    def __setattr__(self, __name: str, __value) -> None:
+        #this little guy will get the class attributes, it will also include class functions, but 
+        #it shouldn't be an issue.
+        attrs = [attr for attr in Configuration.__dict__.keys() if (not attr.startswith("__"))]
+
+        if __name  in attrs:
             super().__setattr__(__name, __value)
-        except AttributeError:
+        else:
             if __name in self.config_dict.keys():
                     if __name == "m_sync_refresh_rate":
                         if __value <= self.MIN_REFRESH_RATE or __value > self.MAX_REFRESH_RATE:
@@ -120,7 +124,8 @@ class configuration:
                 self.config_dict["devices"]  = list(self._db.db["devices"].find({}, {"_id":0, "measurements":0}))
 
     def set_and_push(self, key, value):
-            self.config[key] = value
+            print("key: "+ key + "value: " + str(value))
+            self.config_dict[key] = value
             self.push_config()
 
     def get_device(self, mac):

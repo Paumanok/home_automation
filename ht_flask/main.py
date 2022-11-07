@@ -21,7 +21,7 @@ import plotly.offline as ol
 import plotly.graph_objects as go
 import pandas as pd
 
-from mongo_service import dbm, configuration
+from mongo_service import dbm, Configuration
 
 app = Flask(__name__, template_folder='templates')
 
@@ -32,20 +32,17 @@ sync_refresh_rate = 120 #default first run value, updated values stored in mongo
 
 @app.route('/', methods=["POST","GET"])
 def home():
-    config = configuration(dbm())
+    config = Configuration(dbm())
 
     if request.method == "POST":
         req_keys = request.form.keys()
         if "data_period" in req_keys:
-            config.data_period = request.form["data_period"]
-            config.push_config()
+            config.set_and_push("data_period", request.form["data_period"])
         else:
             if "compensate" in req_keys:
-                config.compensate = True
-                config.push_config()
+                config.set_and_push("compensate", True)
             elif "compensate" not in req_keys:
-                config.compensate = False
-                config.push_config()
+                config.set_and_push("compensate", False) 
 
     dev_data = []
 
@@ -76,9 +73,14 @@ def home():
             }
         )
 
+    ordered_keys = list(config.presets.keys())
+    current_period = config.data_period
+    ordered_keys.remove(current_period)
+    ordered_keys.insert(0,current_period)
     template_input = {
         "presets" : config.presets,
-        "preset_keys" : config.presets.keys(), 
+        #"preset_keys" : config.presets.keys(), 
+        "preset_keys" : ordered_keys, 
         "current_period" : config.data_period, 
         "current_delta" : config.get_cur_delta(),
         "refresh_delay" : str(sync_count + 5), #offset to allow new data to show
@@ -99,7 +101,7 @@ def next_measurement():
 
 @app.route('/config', methods=["GET", "POST"])
 def config():
-    config = configuration(dbm())
+    config = Configuration(dbm())
 
     if request.method == "POST":
         for key in request.form.keys():
@@ -107,6 +109,7 @@ def config():
                 config.save_config()
             
             if key in config.keys():
+                print(config)
                 config.set_and_push(key, request.form[key])
 
             for dev in config.devices:
@@ -122,7 +125,7 @@ def config():
 
 @app.route('/test_dump', methods=["GET"])
 def testdump():
-    config = configuration(dbm())
+    config = Configuration(dbm())
     dataset = dict()
     for dev in config.devices:
         dev["measurements"] = dbm().get_data_from_range(dev["MAC"])
@@ -178,7 +181,7 @@ def c_to_f(c):
 def sync_timer():
     global sync_refresh_rate
     global sync_count
-    config = configuration(dbm())
+    config = Configuration(dbm())
     while True:
         sync_count = int(config.m_sync_refresh_rate)
 
@@ -191,7 +194,7 @@ def init_sync_timer():
     #Initialize the sync rate to work with settings
     global sync_refresh_rate
     
-    config = configuration(dbm())
+    config = Configuration(dbm())
     if "m_sync_refresh_rate" in config.keys():      
         sync_refresh_rate = config.m_sync_refresh_rate
         print("====== Configured Refresh Rate: " + str(sync_refresh_rate) + " seconds")
@@ -205,5 +208,5 @@ def init_sync_timer():
 if __name__ == "__main__":
     measurement_sync = init_sync_timer()
     measurement_sync.start()
-    print(configuration(dbm()).startup_message)
+    print(Configuration(dbm()).startup_message)
     app.run(host="0.0.0.0", port="5000",debug=True)
