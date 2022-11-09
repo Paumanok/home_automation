@@ -145,16 +145,9 @@ class Configuration:
         return presets[self.data_period]["delta"]
 
     def rebuild_config(self):
-        old_id = None
         with open(default_config_path+".bak", 'r') as cf_file:
-            if self.config_dict is not None:
-                if "_id" in self.config_dict.keys():
-                    old_id = self.config_dict["_id"]
-                    
             self.config_dict = {}
             self.config_dict = json.load(cf_file)["ht_server_config"]
-            if old_id is not None:
-                self.config_dict["_id"] = old_id
             print(json.dumps(self.config_dict, indent=4))
             self.push_config()
 

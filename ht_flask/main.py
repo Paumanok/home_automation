@@ -11,15 +11,18 @@ import json
 import threading
 import time
 from datetime import datetime, timedelta
+from io import BytesIO
 
-from flask import Flask, Response, request, render_template, Markup
+from flask import Flask, Response, request, render_template, Markup, send_file
 from pymongo import MongoClient
 from tabulate import tabulate
 
 import plotly.express as px
 import plotly.offline as ol
 import plotly.graph_objects as go
-import pandas as pd
+import plotly.subplots as subplots
+import plotly.io as pio
+#import pandas as pd
 
 from mongo_service import dbm, Configuration
 
@@ -44,16 +47,9 @@ def home():
             elif "compensate" not in req_keys:
                 config.set_and_push("compensate", False) 
 
-    dev_data = []
-
-    for dev in config.devices:
-        measurements = dbm().get_data_from_range(dev["MAC"], delta=config.get_cur_delta())
-        data = {"nickname": dev["nick"],
-                "time": [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in measurements],
-                "temp": compensate_temp_measurements(measurements, dev, config.compensate),
-                "humidity": compensate_hum_measurements(measurements, dev, config.compensate)}
-
-        dev_data.append(data)
+    dev_data = collect_measurements(config)
+    if len(dev_data) < 1:
+        return "error" #lol this needs to be addressed
 
     temp_fig = go.Figure(
             data = [go.Scatter(x=d["time"], y=d["temp"], name=d["nickname"], orientation='v', mode='lines') for d in dev_data], 
@@ -92,7 +88,33 @@ def home():
 
     return render_template('index.html', t_input = template_input)
 
+@app.route('/images', methods=['GET'])
+def get_images():
+    config = Configuration(dbm())
 
+    dev_data = collect_measurements(config)
+    if len(dev_data) < 1:
+        return "error" #lol this needs to be addressed
+
+    fig = subplots.make_subplots(rows=2, cols=1)
+
+    fig.add_traces(
+        data = [go.Scatter(x=d["time"], y=d["temp"], name=d["nickname"], orientation='v', mode='lines', legendgroup="a") for d in dev_data], 
+        rows=1, cols=1
+        
+    )
+    fig.add_traces(
+        data = [go.Scatter(x=d["time"], y=d["humidity"], name=d["nickname"], orientation='v', mode='lines', legendgroup="a", showlegend=False) for d in dev_data], 
+        rows=2, cols=1
+    )
+
+    ret_image = pio.to_image(fig)
+
+    return send_file(
+        BytesIO(ret_image),
+        mimetype='image/png',
+        as_attachment=False,
+        download_name='%s.png' % datetime.now().strftime("%H:%M:%S"))
 
 @app.route('/next', methods=["GET"])
 def next_measurement():  
@@ -158,6 +180,20 @@ def data():
 
 
 # Helper functions
+def collect_measurements(config):
+    dev_data = []
+
+    for dev in config.devices:
+        measurements = dbm().get_data_from_range(dev["MAC"], delta=config.get_cur_delta())
+        data = {"nickname": dev["nick"],
+                "time": [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in measurements],
+                "temp": compensate_temp_measurements(measurements, dev, config.compensate),
+                "humidity": compensate_hum_measurements(measurements, dev, config.compensate)}
+
+        dev_data.append(data)
+
+    return dev_data
+
 def compensate_temp_measurements(measurements, device, compensate=False):
     comp = 0
     if compensate:
