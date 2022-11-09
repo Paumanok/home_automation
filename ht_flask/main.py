@@ -104,7 +104,7 @@ def get_images():
         
     )
     fig.add_traces(
-        data = [go.Scatter(x=d["time"], y=d["humidity"], name=d["nickname"], orientation='v', mode='lines', legendgroup="a", showlegend=False) for d in dev_data], 
+        data = [go.Scatter(x=d["time"], y=d["humidity"], name=d["nickname"], orientation='v', mode='lines', legendgroup="a") for d in dev_data], 
         rows=2, cols=1
     )
 
