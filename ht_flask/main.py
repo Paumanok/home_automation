@@ -131,7 +131,7 @@ def config():
                 config.save_config()
             
             if key in config.keys():
-                print(config)
+                print(config, flush=True)
                 config.set_and_push(key, request.form[key])
 
             for dev in config.devices:
@@ -219,6 +219,7 @@ def sync_timer():
     global sync_count
     config = Configuration(dbm())
     while True:
+        config.load_config() #refresh dict from db, config object gets stale
         sync_count = int(config.m_sync_refresh_rate)
 
         while sync_count > 0:

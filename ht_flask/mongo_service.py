@@ -123,8 +123,13 @@ class Configuration:
             if "devices" not in self.config_dict.keys():
                 self.config_dict["devices"]  = list(self._db.db["devices"].find({}, {"_id":0, "measurements":0}))
 
+
     def set_and_push(self, key, value):
-            print("key: "+ key + "value: " + str(value))
+            print("key: "+ key + " value: " + str(value), flush=True)
+            if key == "m_sync_refresh_rate":
+                if int(value) <= self.MIN_REFRESH_RATE or int(value) >= self.MAX_REFRESH_RATE:
+                    value = self.config_dict[key] #default to current value
+
             self.config_dict[key] = value
             self.push_config()
 

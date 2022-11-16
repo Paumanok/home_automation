@@ -17,19 +17,19 @@
                         <p>
                             <form action="/config" method="POST">
                             <label for={{device["MAC"]}}-nick> Nickname: </label>
-                            <input type="name" name={{device["MAC"]}}-nick placeholder={{device["nick"]}}>
+                            <input type="name" name={{device["MAC"]}}-nick value={{device["nick"]}}>
                             </form>
                         </p>
                         <p>
                             <form action="/config" method="POST">
                             <label for="{{device["MAC"]}}-hum_comp"> Humidty Compensation: </label>
-                            <input type="number" name={{device["MAC"]}}-hum_comp placeholder={{device["hum_comp"]}}> 
+                            <input type="number" name={{device["MAC"]}}-hum_comp value={{device["hum_comp"]}}> 
                             </form>
                         </p>  
                         <p>
                             <form action="/config" method="POST">
                             <label for="{{device["MAC"]}}-temp_comp"> temperature Compensation: </label>
-                            <input type="number" name="{{device["MAC"]}}-temp_comp" placeholder={{device["temp_comp"]}}>
+                            <input type="number" name="{{device["MAC"]}}-temp_comp" value={{device["temp_comp"]}}>
                             </form>
                         </p> 
                         
@@ -42,14 +42,14 @@
             <div> 
                 <form action="/config" method="POST">
                     <label for="m_sync_refresh_rate"> Measurement Refresh (seconds)</label>
-                    <input type="number" name="m_sync_refresh_rate" placeholder={{config["m_sync_refresh_rate"]}} >
+                    <input type="number" name="m_sync_refresh_rate" value={{config["m_sync_refresh_rate"]}} >
                     <button type="submit"> Submit </button>
                 </form>
             </div>
             <div> 
                 <form action="/config" method="POST">
                     <label for="startup_message"> Startup message </label>
-                    <input type="text" name="startup_message" placeholder={{config["startup_message"]}} >
+                    <input type="text" name="startup_message" value={{config["startup_message"]}} >
                     <button type="submit"> Submit </button>
                 </form>
             </div>
