@@ -139,6 +139,11 @@ class Configuration:
                 return dev
         return None
 
+    def add_device_to_config(self, mac, name="", hum_comp=0, temp_comp=0):
+        new_dev = {"MAC":mac, "nick":name, "hum_comp": hum_comp, "temp_comp":temp_comp}
+        self.config_dict["devices"].append(new_dev)
+        self.push_config()
+
     def set_device_attr(self, mac, name, value):
         for dev in self.devices:
             if dev["MAC"] == mac:
