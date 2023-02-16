@@ -51,23 +51,14 @@ def home():
     if len(dev_data) < 1:
         return "error" #lol this needs to be addressed
 
-    temp_fig = go.Figure(
-            data = [go.Scatter(x=d["time"], y=d["temp"], name=d["nickname"], orientation='v', mode='lines') for d in dev_data], 
-            layout = {
-                'margin': {'t': 60},
-                'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
-                'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Temperature(F)'}}
-            }
-        )
-        
-    hum_fig = go.Figure(
-            data = [go.Scatter(x=d["time"], y=d["humidity"], name=d["nickname"], orientation='v', mode='lines') for d in dev_data], 
-            layout = {
-                'margin': {'t': 60},
-                'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
-                'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'Humidity(%)'}}
-            }
-        )
+    temp_fig = generate_plot(dev_data, "temp", "Temperature(F)")
+    hum_fig = generate_plot(dev_data, "humidity", "Humidity(%)")
+
+    #TODO I need to create a way to determine what each sensor supports 
+    pres_fig = generate_plot(dev_data, "Pressure", "Ambient Pressure(hPa)")
+    pm_fig = generate_plot(dev_data, "pm25", "pm25")
+
+    #pressure_fig = generate_plot(dev_data, "Pressure", "hPa")
 
     ordered_keys = list(config.presets.keys())
     current_period = config.data_period
@@ -82,9 +73,11 @@ def home():
         "refresh_delay" : str(sync_count + 5), #offset to allow new data to show
         "compensate" : config.compensate
     }
-
+ 
     template_input["temp_plot"] = Markup(ol.plot(temp_fig, output_type='div', include_plotlyjs=False))
     template_input["hum_plot"] = Markup(ol.plot(hum_fig, output_type='div', include_plotlyjs=False))
+    template_input["pres_plot"] = Markup(ol.plot(pres_fig, output_type='div', include_plotlyjs=False))
+    template_input["pm_plot"] = Markup(ol.plot(pm_fig, output_type='div', include_plotlyjs=False))
 
     return render_template('index.html', t_input = template_input)
 
@@ -160,6 +153,7 @@ def data():
     db = dbm().db
     dev = dbm().devices
     measurements = dbm().measurements
+    config = Configuration(dbm())
 
     if request.method == "GET":
         return "hello"
@@ -171,8 +165,18 @@ def data():
                  "MAC": request.json["mac"], 
                  "Temp": request.json["temp"], 
                  "Humidity": request.json["hum"]}
+        
+        if "pressure" in request.json.keys():
+            to_insert["Pressure"] = request.json["pressure"]
 
-        print("\r\nDATA_RECIEVED: \r\n" + str(to_insert) + "\r\n")
+        if "pm25" in request.json.keys():
+            to_insert["pm25"] = request.json["pm25"]
+
+        #check if a config section for the device exists
+        if request.json["mac"] not in [dev["MAC"] for dev in config.devices]:
+            config.add_device_to_config(request.json["mac"])
+
+        print("\r\nDATA_RECIEVED: \r\n" + str(to_insert) + "\r\n", flush=True)
 
         resp = measurements.insert_one(to_insert.copy())        
     #print("time-to-sync: " + str(sync_count))
@@ -189,6 +193,13 @@ def collect_measurements(config):
                 "time": [datetime.strptime(i["date"] + " " + i["time"], "%d/%m/%Y %H:%M:%S").isoformat() for i in measurements],
                 "temp": compensate_temp_measurements(measurements, dev, config.compensate),
                 "humidity": compensate_hum_measurements(measurements, dev, config.compensate)}
+
+        if len(measurements) > 0: #don't upset sleepign sensors
+            if "Pressure" in measurements[0].keys():
+                data["Pressure"]= scale_pressure_measurements(measurements)
+        
+            if "pm25" in measurements[0].keys():
+                data["pm25"] = [i["pm25"] for i in measurements]
 
         dev_data.append(data)
 
@@ -208,8 +219,30 @@ def compensate_hum_measurements(measurements, device, compensate=False):
     hums = [(i["Humidity"] + comp) for i in measurements]
     return hums
 
+def scale_pressure_measurements(measurements):
+    pres = [(i["Pressure"] / 100) for i in measurements]
+    return pres
+
 def c_to_f(c):
     return (c * 9/5) + 32
+
+def generate_plot(in_data, data_key, data_label):
+    
+    approved_data = []
+    for d in in_data:
+        if data_key in d.keys():
+            approved_data.append(d)
+
+    figure = go.Figure(
+            data = [go.Scatter(x=d["time"], y=d[data_key], name=d["nickname"], orientation='v', mode='lines') for d in approved_data], 
+            layout = {
+                'margin': {'t': 60},
+                'xaxis': {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'time'}},
+                'yaxis': {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': data_label}}
+            }
+        )
+
+    return figure
 # end helper
 
 
