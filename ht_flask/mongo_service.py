@@ -5,6 +5,7 @@ author: Matthew Smith
 """
 
 from pymongo import MongoClient
+import pymongo
 from bson import objectid
 import json
 import copy
@@ -39,6 +40,16 @@ class dbm:
         data = [i for i in measurements]
         
         return data
+
+    def get_last_measurements(self, mac_addr):
+        measurements = self.get_data_from_range(mac_addr, 1)
+        if len(measurements) > 0:
+            last_measurement = measurements[-1]
+        else:
+            last_measurement = -1
+
+
+        return last_measurement
 
     def get_db_size_str(self):
         size = int(self.db.command("collstats", "measurements")["size"])

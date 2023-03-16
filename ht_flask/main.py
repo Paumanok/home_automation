@@ -113,6 +113,23 @@ def get_images():
 def next_measurement():  
     return "sync_time " + str(sync_count)
 
+@app.route('/get_last_measurement', methods=["GET"])
+def get_last_measurement():
+    config = Configuration(dbm())
+    
+    ret = dict()
+    for dev in config.devices:
+        meas = dbm().get_last_measurements(dev["MAC"])
+        if type(meas) is dict:
+            dev["measurements"] = meas
+        else:
+            continue
+        ret[dev["nick"]] = dev
+
+    ret["next_refresh"] = sync_count #this bit of api is not very standard, but its useful!
+    
+    return ret
+
 
 @app.route('/config', methods=["GET", "POST"])
 def config():
