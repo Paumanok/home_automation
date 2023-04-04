@@ -216,7 +216,8 @@ def collect_measurements(config):
                 data["Pressure"]= scale_pressure_measurements(measurements)
         
             if "pm25" in measurements[0].keys():
-                data["pm25"] = [i["pm25"] for i in measurements]
+                
+                data["pm25"] = [i["pm25"] for i in measurements if "pm25" in i.keys()]
 
         dev_data.append(data)
 
