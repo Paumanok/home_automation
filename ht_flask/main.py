@@ -126,6 +126,16 @@ def get_last_measurement():
             continue
         ret[dev["nick"]] = dev
 
+    current_time = datetime.now()
+    for key in list(ret.keys()):
+        if isinstance(ret[key], dict) and "measurements" in ret[key]:
+            item_time_str = ret[key]["measurements"]["date"] + " " + ret[key]["measurements"]["time"]
+            item_time = datetime.strptime(item_time_str, "%d/%m/%Y %H:%M:%S")
+            if (current_time - item_time).total_seconds() > 120:
+                del ret[key]
+    return ret
+
+
     ret["next_refresh"] = sync_count #this bit of api is not very standard, but its useful!
     
     return ret
