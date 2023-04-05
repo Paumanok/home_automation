@@ -133,8 +133,6 @@ def get_last_measurement():
             item_time = datetime.strptime(item_time_str, "%d/%m/%Y %H:%M:%S")
             if (current_time - item_time).total_seconds() > 120:
                 del ret[key]
-    return ret
-
 
     ret["next_refresh"] = sync_count #this bit of api is not very standard, but its useful!
     
